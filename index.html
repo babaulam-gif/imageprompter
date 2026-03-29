@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visual Prompt Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0f0f0f;
+    --paper: #f5f0e8;
+    --cream: #ede7d9;
+    --amber: #c8832a;
+    --amber-light: #e8a84a;
+    --muted: #7a7060;
+    --border: #ccc4b0;
+    --card: #faf7f2;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Mono', monospace;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 24px 16px 48px;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+
+  .container { max-width: 900px; margin: 0 auto; position: relative; z-index: 1; }
+
+  header { border-bottom: 2px solid var(--ink); padding-bottom: 16px; margin-bottom: 24px; }
+
+  .header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+
+  .header-left h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(1.8rem, 5vw, 2.6rem);
+    line-height: 1.05; letter-spacing: -0.02em;
+  }
+  .header-left h1 em { font-style: italic; color: var(--amber); }
+  .header-left p { font-size: 0.68rem; color: var(--muted); margin-top: 5px; letter-spacing: 0.06em; text-transform: uppercase; }
+
+  .mode-toggle { display: flex; gap: 4px; flex-shrink: 0; margin-top: 4px; }
+  .mode-btn {
+    font-family: 'DM Mono', monospace; font-size: 0.68rem; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 7px 14px; border: 1.5px solid var(--border);
+    background: transparent; cursor: pointer; color: var(--muted); transition: all 0.15s;
+  }
+  .mode-btn.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .mode-btn:hover:not(.active) { border-color: var(--amber); color: var(--amber); }
+
+  .tool-row { margin-top: 14px; }
+  .tool-row-label { font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; display: block; }
+
+  .tool-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tool-chip {
+    font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.04em;
+    padding: 5px 11px; border: 1.5px solid var(--border);
+    background: transparent; cursor: pointer; color: var(--ink); transition: all 0.12s; user-select: none;
+  }
+  .tool-chip:hover { border-color: var(--amber-light); color: var(--amber); }
+  .tool-chip.active { background: var(--amber); color: #fff; border-color: var(--amber); }
+
+  .tool-note {
+    font-size: 0.67rem; color: var(--muted); background: rgba(200,131,42,0.07);
+    border: 1px solid var(--amber-light); padding: 7px 12px; margin-top: 10px;
+    line-height: 1.6; display: none;
+  }
+  .tool-note.visible { display: block; }
+
+  .section { margin-bottom: 16px; background: var(--card); border: 1.5px solid var(--border); padding: 15px 17px; }
+  .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .section-num {
+    font-size: 0.6rem; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--amber); background: rgba(200,131,42,0.1); padding: 3px 8px; border: 1px solid var(--amber-light);
+  }
+  .section-title { font-family: 'DM Serif Display', serif; font-size: 1rem; }
+  .section-tip { font-size: 0.64rem; color: var(--muted); margin-left: auto; font-style: italic; }
+
+  .fields { display: grid; gap: 10px; }
+  .fields.two-col { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 560px) { .fields.two-col { grid-template-columns: 1fr; } }
+
+  .field label { display: block; font-size: 0.64rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .field input, .field textarea, .field select {
+    width: 100%; font-family: 'DM Mono', monospace; font-size: 0.79rem; padding: 8px 11px;
+    border: 1.5px solid var(--border); background: var(--paper); color: var(--ink);
+    outline: none; transition: border-color 0.15s; appearance: none;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--amber); }
+  .field textarea { resize: vertical; min-height: 64px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-family: 'DM Mono', monospace; font-size: 0.67rem; letter-spacing: 0.04em;
+    padding: 5px 11px; border: 1.5px solid var(--border);
+    background: transparent; cursor: pointer; color: var(--ink); transition: all 0.12s; user-select: none;
+  }
+  .chip:hover { border-color: var(--amber-light); color: var(--amber); }
+  .chip.selected { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  .divider { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; }
+  .divider span { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .output-section { border: 2px solid var(--ink); background: var(--cream); padding: 17px; margin-top: 18px; }
+  .output-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; }
+  .output-label { font-family: 'DM Serif Display', serif; font-size: 1.1rem; }
+  .output-actions { display: flex; gap: 8px; }
+
+  .btn {
+    font-family: 'DM Mono', monospace; font-size: 0.67rem; font-weight: 500;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 7px 14px; border: 1.5px solid var(--ink); cursor: pointer; transition: all 0.15s;
+  }
+  .btn-primary { background: var(--ink); color: var(--paper); }
+  .btn-primary:hover { background: var(--amber); border-color: var(--amber); }
+  .btn-ghost { background: transparent; color: var(--ink); }
+  .btn-ghost:hover { background: var(--ink); color: var(--paper); }
+
+  #prompt-output {
+    font-family: 'DM Mono', monospace; font-size: 0.79rem; line-height: 1.75; color: var(--ink);
+    white-space: pre-wrap; min-height: 80px; padding: 12px 14px;
+    background: var(--paper); border: 1.5px solid var(--border); word-break: break-word;
+  }
+  .char-count { text-align: right; font-size: 0.63rem; color: var(--muted); margin-top: 5px; letter-spacing: 0.05em; }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px;
+    font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.06em;
+    padding: 10px 18px; background: var(--ink); color: var(--paper);
+    opacity: 0; transform: translateY(8px); transition: all 0.2s; pointer-events: none; z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  .video-only { display: none; }
+  body.video-mode .video-only { display: block; }
+  body.video-mode .image-only { display: none; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="header-top">
+      <div class="header-left">
+        <h1>Visual Prompt <em>Builder</em></h1>
+        <p>Image &amp; Video · 2026 AI Tools</p>
+      </div>
+      <div class="mode-toggle">
+        <button class="mode-btn active" onclick="setMode('image',event)">Image</button>
+        <button class="mode-btn" onclick="setMode('video',event)">Video</button>
+      </div>
+    </div>
+
+    <div class="tool-row">
+      <span class="tool-row-label">Target Tool:</span>
+      <div class="tool-chips" id="tool-chips-image">
+        <span class="tool-chip active" data-tool="chatgpt">ChatGPT / DALL-E</span>
+        <span class="tool-chip" data-tool="nanob2">Nano Banana 2</span>
+        <span class="tool-chip" data-tool="nanobp">Nano Banana Pro</span>
+        <span class="tool-chip" data-tool="grok">Grok / Aurora</span>
+        <span class="tool-chip" data-tool="canva">Canva AI</span>
+        <span class="tool-chip" data-tool="midjourney">Midjourney</span>
+        <span class="tool-chip" data-tool="firefly">Adobe Firefly</span>
+        <span class="tool-chip" data-tool="seedream">Seedream 5</span>
+      </div>
+      <div class="tool-chips" id="tool-chips-video" style="display:none">
+        <span class="tool-chip active" data-tool="runway">Runway Gen-4</span>
+        <span class="tool-chip" data-tool="kling">Kling 3.0</span>
+        <span class="tool-chip" data-tool="seedance">Seedance 2.0</span>
+        <span class="tool-chip" data-tool="veo">Google Veo 3.1</span>
+        <span class="tool-chip" data-tool="sora">Sora 2</span>
+        <span class="tool-chip" data-tool="pika">Pika</span>
+        <span class="tool-chip" data-tool="luma">Luma Ray 3</span>
+        <span class="tool-chip" data-tool="hailuo">Hailuo MiniMax</span>
+        <span class="tool-chip" data-tool="vidu">Vidu Q3</span>
+      </div>
+    </div>
+    <div class="tool-note" id="tool-note"></div>
+  </header>
+
+  <!-- 01 Subject -->
+  <div class="section">
+    <div class="section-header"><span class="section-num">01</span><span class="section-title">Subject</span><span class="section-tip">Who or what is the focus?</span></div>
+    <div class="fields">
+      <div class="field"><label>Main Subject</label><input id="subject" type="text" placeholder="e.g. lone astronaut, futuristic cityscape, elderly craftsman..."></div>
+      <div class="field"><label>Subject Detail / Action</label><input id="subject-detail" type="text" placeholder="e.g. holding glowing orb, standing at golden hour..."></div>
+    </div>
+  </div>
+
+  <!-- 02 Style -->
+  <div class="section">
+    <div class="section-header"><span class="section-num">02</span><span class="section-title">Style &amp; Medium</span><span class="section-tip">Pick multiple</span></div>
+    <div class="divider"><span>Medium</span></div>
+    <div class="chips">
+      <div class="chip" data-group="medium">Photography</div><div class="chip" data-group="medium">Digital Art</div>
+      <div class="chip" data-group="medium">Oil Painting</div><div class="chip" data-group="medium">Watercolor</div>
+      <div class="chip" data-group="medium">Pencil Sketch</div><div class="chip" data-group="medium">3D Render</div>
+      <div class="chip" data-group="medium">Cinematic</div><div class="chip" data-group="medium">Illustration</div><div class="chip" data-group="medium">Anime</div>
+    </div>
+    <div class="divider" style="margin-top:12px"><span>Style</span></div>
+    <div class="chips">
+      <div class="chip" data-group="style">Photorealistic</div><div class="chip" data-group="style">Surrealist</div>
+      <div class="chip" data-group="style">Minimalist</div><div class="chip" data-group="style">Cyberpunk</div>
+      <div class="chip" data-group="style">Noir</div><div class="chip" data-group="style">Baroque</div>
+      <div class="chip" data-group="style">Retro / Vintage</div><div class="chip" data-group="style">Editorial</div>
+      <div class="chip" data-group="style">Dark Fantasy</div><div class="chip" data-group="style">Lo-Fi</div>
+    </div>
+    <div class="fields" style="margin-top:12px">
+      <div class="field"><label>Artist / Inspired By</label><input id="artist" type="text" placeholder="e.g. by Moebius, in the style of Ansel Adams..."></div>
+    </div>
+  </div>
+
+  <!-- 03 Camera -->
+  <div class="section">
+    <div class="section-header"><span class="section-num">03</span><span class="section-title">Composition &amp; Camera</span></div>
+    <div class="fields two-col">
+      <div class="field"><label>Shot / Framing</label>
+        <select id="shot">
+          <option value="">— Select —</option>
+          <option>Extreme wide shot</option><option>Wide shot</option><option>Medium shot</option>
+          <option>Close-up</option><option>Extreme close-up</option><option>Bird's eye view</option>
+          <option>Worm's eye view</option><option>Over the shoulder</option><option>Dutch angle</option><option>Point of view (POV)</option>
+        </select>
+      </div>
+      <div class="field"><label>Lens / Depth of Field</label>
+        <select id="lens">
+          <option value="">— Select —</option>
+          <option>Shallow depth of field (bokeh)</option><option>Deep depth of field</option>
+          <option>85mm portrait lens</option><option>Wide angle 24mm</option>
+          <option>Macro lens</option><option>Tilt-shift</option><option>Fish-eye</option><option>Telephoto 200mm</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- 04 Lighting -->
+  <div class="section">
+    <div class="section-header"><span class="section-num">04</span><span class="section-title">Lighting &amp; Color</span></div>
+    <div class="divider"><span>Lighting</span></div>
+    <div class="chips">
+      <div class="chip" data-group="lighting">Golden Hour</div><div class="chip" data-group="lighting">Blue Hour</div>
+      <div class="chip" data-group="lighting">Studio Soft Box</div><div class="chip" data-group="lighting">Dramatic Side Lighting</div>
+      <div class="chip" data-group="lighting">Neon / Bioluminescent</div><div class="chip" data-group="lighting">Foggy / Misty</div>
+      <div class="chip" data-group="lighting">Candlelight</div><div class="chip" data-group="lighting">Overcast Diffused</div>
+      <div class="chip" data-group="lighting">High Contrast Chiaroscuro</div>
+    </div>
+    <div class="fields two-col" style="margin-top:12px">
+      <div class="field"><label>Color Palette / Mood</label><input id="color" type="text" placeholder="e.g. muted earth tones, vivid neons, monochrome blue..."></div>
+      <div class="field"><label>Time of Day / Setting</label><input id="time" type="text" placeholder="e.g. dawn, midnight, midday desert sun..."></div>
+    </div>
+  </div>
+
+  <!-- 05 Environment -->
+  <div class="section">
+    <div class="section-header"><span class="section-num">05</span><span class="section-title">Environment &amp; Background</span></div>
+    <div class="fields">
+      <div class="field"><label>Setting / Location</label><input id="environment" type="text" placeholder="e.g. overgrown Tokyo alley, Swiss mountain pass, floating island..."></div>
+      <div class="field"><label>Atmosphere / Mood Keywords</label><input id="atmosphere" type="text" placeholder="e.g. eerie, serene, bustling, melancholic, epic..."></div>
+    </div>
+  </div>
+
+  <!-- 06 Quality -->
+  <div class="section">
+    <div class="section-header"><span class="section-num">06</span><span class="section-title">Technical &amp; Quality Tags</span></div>
+    <div class="chips">
+      <div class="chip" data-group="quality">8K Ultra HD</div><div class="chip" data-group="quality">4K resolution</div>
+      <div class="chip" data-group="quality">Hyperrealistic</div><div class="chip" data-group="quality">Award-winning</div>
+      <div class="chip" data-group="quality">Shot on ARRI Alexa</div><div class="chip" data-group="quality">Highly detailed</div>
+      <div class="chip" data-group="quality">Octane Render</div><div class="chip" data-group="quality">Unreal Engine 5</div>
+      <div class="chip" data-group="quality">RAW photo</div><div class="chip" data-group="quality">Trending on ArtStation</div>
+    </div>
+  </div>
+
+  <!-- 07 Format (image) -->
+  <div class="section image-only">
+    <div class="section-header"><span class="section-num">07</span><span class="section-title">Aspect Ratio &amp; Format</span></div>
+    <div class="chips">
+      <div class="chip" data-group="ratio">1:1 Square</div><div class="chip" data-group="ratio">16:9 Landscape</div>
+      <div class="chip" data-group="ratio">9:16 Portrait</div><div class="chip" data-group="ratio">4:3 Standard</div>
+      <div class="chip" data-group="ratio">3:2 DSLR</div><div class="chip" data-group="ratio">2.35:1 Cinematic</div>
+    </div>
+  </div>
+
+  <!-- 07 Motion (video) -->
+  <div class="section video-only">
+    <div class="section-header"><span class="section-num">07</span><span class="section-title">Motion &amp; Camera Movement</span></div>
+    <div class="chips">
+      <div class="chip" data-group="motion">Slow push-in</div><div class="chip" data-group="motion">Dolly zoom</div>
+      <div class="chip" data-group="motion">Aerial drone orbit</div><div class="chip" data-group="motion">Handheld shaky</div>
+      <div class="chip" data-group="motion">Static locked shot</div><div class="chip" data-group="motion">Time-lapse</div>
+      <div class="chip" data-group="motion">Slow motion 120fps</div><div class="chip" data-group="motion">Tracking shot</div>
+      <div class="chip" data-group="motion">Orbital pan 180°</div>
+    </div>
+    <div class="fields two-col" style="margin-top:12px">
+      <div class="field"><label>Duration</label>
+        <select id="duration">
+          <option value="">— Select —</option>
+          <option>3–5 seconds</option><option>5–10 seconds</option><option>10–30 seconds</option><option>30–60 seconds</option>
+        </select>
+      </div>
+      <div class="field"><label>Action / Scene Detail</label><input id="video-action" type="text" placeholder="e.g. rain begins falling, character turns slowly..."></div>
+    </div>
+  </div>
+
+  <!-- 08 Tool Params -->
+  <div class="section">
+    <div class="section-header"><span class="section-num">08</span><span class="section-title">Tool-Specific Parameters</span><span class="section-tip" id="params-tool-label"></span></div>
+    <div id="params-content"></div>
+  </div>
+
+  <!-- 09 Negative -->
+  <div class="section">
+    <div class="section-header"><span class="section-num">09</span><span class="section-title">Negative Prompt</span><span class="section-tip">What to exclude</span></div>
+    <div class="field"><label>Exclude / Avoid</label><input id="negative" type="text" placeholder="e.g. blurry, low quality, extra limbs, watermark, ugly..."></div>
+  </div>
+
+  <!-- Actions -->
+  <div style="text-align:center; margin:18px 0 6px;">
+    <button class="btn btn-primary" style="padding:11px 34px;font-size:0.73rem;" onclick="buildPrompt()">▶ &nbsp;Generate Prompt</button>
+    <button class="btn btn-ghost" style="padding:11px 22px;font-size:0.73rem;margin-left:8px;" onclick="clearAll()">Reset</button>
+  </div>
+
+  <!-- Output -->
+  <div class="output-section">
+    <div class="output-header">
+      <span class="output-label">Your Prompt</span>
+      <div class="output-actions">
+        <button class="btn btn-ghost" onclick="copyPrompt()">Copy</button>
+        <button class="btn btn-primary" onclick="buildPrompt()">Refresh</button>
+      </div>
+    </div>
+    <div id="prompt-output">Fill in the fields above and click Generate Prompt →</div>
+    <div class="char-count" id="char-count">0 characters</div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Copied ✓</div>
+
+<script>
+let currentMode = 'image';
+let currentTool = 'chatgpt';
+
+const TOOLS = {
+  chatgpt: {
+    label:'ChatGPT / DALL-E', mode:'image',
+    note:'DALL-E works best with natural, descriptive language. State style early. Supports editing and image variations via ChatGPT.',
+    params:`<div class="fields two-col">
+      <div class="field"><label>Size</label><select id="t-size"><option value="">— Select —</option><option>1024×1024 square</option><option>1792×1024 landscape</option><option>1024×1792 portrait</option></select></div>
+      <div class="field"><label>Quality</label><select id="t-quality"><option value="">— Select —</option><option>standard</option><option>hd</option></select></div>
+    </div>`
+  },
+  nanob2: {
+    label:'Nano Banana 2 (Gemini 3.1 Flash)', mode:'image',
+    note:'Google\'s fastest 2026 model. Free, 4K output, up to 14 reference images, 5-character consistency, real-time web search integration. Default across Gemini app and Google Search.',
+    params:`<div class="fields two-col">
+      <div class="field"><label>Aspect Ratio</label><select id="t-ar"><option value="">— Select —</option><option>1:1</option><option>16:9</option><option>9:16</option><option>4:3</option><option>3:2</option><option>8:1 ultra-wide</option><option>1:8 ultra-tall</option></select></div>
+      <div class="field"><label>Thinking Level</label><select id="t-think"><option value="">— Select —</option><option>Low (fast)</option><option>Medium (balanced)</option><option>High (precise)</option></select></div>
+    </div>`
+  },
+  nanobp: {
+    label:'Nano Banana Pro (Gemini 3 Pro)', mode:'image',
+    note:'Enterprise-grade precision. Best for high-fidelity professional projects. 4K output with superior detail and layout accuracy.',
+    params:`<div class="fields"><div class="field"><label>Output Quality</label><select id="t-qual"><option value="">— Select —</option><option>Standard</option><option>4K Professional</option></select></div></div>`
+  },
+  grok: {
+    label:'Grok / Aurora (xAI)', mode:'image',
+    note:'Aurora model excels at cinematic, dramatic, photorealistic visuals. Great for social-first content. Supports text-in-image. Available via X Premium / SuperGrok.',
+    params:`<div class="fields two-col">
+      <div class="field"><label>Aspect Ratio</label><select id="t-ar"><option value="">— Select —</option><option>16:9</option><option>9:16</option><option>1:1</option></select></div>
+      <div class="field"><label>Variations</label><select id="t-var"><option value="">— Select —</option><option>1 image</option><option>2 images</option><option>4 images</option></select></div>
+    </div>`
+  },
+  canva: {
+    label:'Canva AI', mode:'image',
+    note:'Keep prompts clear and visual. Works best with simple style + subject + mood. Ideal for quick marketing and social visuals.',
+    params:`<div class="fields"><div class="field"><label>Style Preset</label><select id="t-style"><option value="">— Select —</option><option>Photo</option><option>Illustration</option><option>Watercolor</option><option>Digital art</option><option>Concept art</option><option>Neon</option></select></div></div>`
+  },
+  midjourney: {
+    label:'Midjourney', mode:'image',
+    note:'Best with visual keyword stacking. Use --ar for ratio, --v 7 for latest model, --style raw for realism. Add --no for negative prompts.',
+    params:`<div class="fields two-col">
+      <div class="field"><label>Aspect Ratio (--ar)</label><select id="t-mjar"><option value="">— Select —</option><option value="--ar 1:1">1:1</option><option value="--ar 16:9">16:9</option><option value="--ar 9:16">9:16</option><option value="--ar 4:3">4:3</option><option value="--ar 3:2">3:2</option><option value="--ar 2:1">2:1</option></select></div>
+      <div class="field"><label>Style (--style)</label><select id="t-mjst"><option value="">— Select —</option><option value="--style raw">raw (photorealistic)</option><option value="--style cute">cute</option><option value="--style expressive">expressive</option><option value="--style scenic">scenic</option></select></div>
+      <div class="field"><label>Stylize (--s)</label><input id="t-s" type="number" min="0" max="1000" placeholder="100"></div>
+      <div class="field"><label>Chaos (--c)</label><input id="t-c" type="number" min="0" max="100" placeholder="0"></div>
+    </div>`
+  },
+  firefly: {
+    label:'Adobe Firefly', mode:'image',
+    note:'Commercially safe — trained on licensed Adobe Stock. Best for branded and marketing visuals. Use Generative Fill for editing. Describe mood and lighting clearly.',
+    params:`<div class="fields two-col">
+      <div class="field"><label>Content Type</label><select id="t-ct"><option value="">— Select —</option><option>Photo</option><option>Art</option><option>Graphic</option></select></div>
+      <div class="field"><label>Photo Settings</label><select id="t-ps"><option value="">— Select —</option><option>Aperture f/1.4</option><option>Aperture f/8</option><option>Long exposure</option><option>HDR</option></select></div>
+    </div>`
+  },
+  seedream: {
+    label:'Seedream 5 (ByteDance)', mode:'image',
+    note:'ByteDance\'s 2026 flagship. Excellent multilingual text rendering, multi-image consistency, 4K output. Use @Image1 tag to anchor subject from reference image.',
+    params:`<div class="fields"><div class="field"><label>Reference Tag (optional)</label><input id="t-ref" type="text" placeholder="e.g. @Image1 for reference subject anchoring"></div></div>`
+  },
+  runway: {
+    label:'Runway Gen-4', mode:'video',
+    note:'Best for cinematic camera work and Multi-Motion Brush animation. Describe camera movement explicitly. Supports 1–3 reference images + text.',
+    params:`<div class="fields two-col">
+      <div class="field"><label>Camera Motion</label><select id="t-cam"><option value="">— Select —</option><option>Pan left</option><option>Pan right</option><option>Tilt up</option><option>Tilt down</option><option>Zoom in</option><option>Zoom out</option><option>Dolly forward</option><option>Orbit left</option></select></div>
+      <div class="field"><label>Duration</label><select id="t-dur"><option value="">— Select —</option><option>4 seconds</option><option>8 seconds</option><option>16 seconds</option></select></div>
+    </div>`
+  },
+  kling: {
+    label:'Kling 3.0 (Kuaishou)', mode:'video',
+    note:'King of physics simulation. Realistic water, fire, human movement, and complex physics. Latest model is Kling 3.0. Available at kling.ai.',
+    params:`<div class="fields two-col">
+      <div class="field"><label>Model</label><select id="t-kv"><option value="">— Select —</option><option>Kling 3.0 (latest)</option><option>Kling 2.6 (cost-efficient)</option></select></div>
+      <div class="field"><label>Mode</label><select id="t-km"><option value="">— Select —</option><option>Text-to-video</option><option>Image-to-video</option></select></div>
+    </div>`
+  },
+  seedance: {
+    label:'Seedance 2.0 (ByteDance)', mode:'video',
+    note:'Excellent character consistency. Use @Image1 to anchor subject geometry, @Video1 to borrow camera physics from reference clip. Available via Jimeng / Dreamina.',
+    params:`<div class="fields"><div class="field"><label>Reference Tags (optional)</label><input id="t-sref" type="text" placeholder="@Image1 for subject, @Video1 for camera physics"></div></div>`
+  },
+  veo: {
+    label:'Google Veo 3.1', mode:'video',
+    note:'Best overall 2026 video model. Native audio synced to motion. Supports First/Last Frame control and Ingredients-to-Video (up to 3 reference images).',
+    params:`<div class="fields two-col">
+      <div class="field"><label>First Frame Description</label><input id="t-sf" type="text" placeholder="Describe the opening frame specifically"></div>
+      <div class="field"><label>Last Frame Description</label><input id="t-ef" type="text" placeholder="Describe the closing frame specifically"></div>
+      <div class="field"><label>Audio Description</label><input id="t-audio" type="text" placeholder="e.g. ocean waves, distant traffic, wind..."></div>
+      <div class="field"><label>Dialogue / Narration</label><input id="t-dial" type="text" placeholder="e.g. character says '...', narrator voice..."></div>
+    </div>`
+  },
+  sora: {
+    label:'Sora 2 (OpenAI)', mode:'video',
+    note:'Acts like an AI director — strong on story continuity and complex multi-shot scenes. Write prompts like a script/storyboard. Available to ChatGPT subscribers (US/Canada).',
+    params:`<div class="fields two-col">
+      <div class="field"><label>Aspect Ratio</label><select id="t-sar"><option value="">— Select —</option><option>16:9 widescreen</option><option>9:16 vertical</option><option>1:1 square</option></select></div>
+      <div class="field"><label>Resolution</label><select id="t-sres"><option value="">— Select —</option><option>480p</option><option>720p</option><option>1080p</option></select></div>
+    </div>`
+  },
+  pika: {
+    label:'Pika', mode:'video',
+    note:'Great for stylized animations and social clips. Strong on character art. Use Pikaffects for fun special motion effects. Fast, accessible, ~$10/mo.',
+    params:`<div class="fields"><div class="field"><label>Pikaffect / Effect</label><select id="t-peff"><option value="">— Select —</option><option>Explode</option><option>Melt</option><option>Deflate</option><option>Cake-ify</option><option>Squish</option><option>Inflate</option></select></div></div>`
+  },
+  luma: {
+    label:'Luma Ray 3', mode:'video',
+    note:'Excellent image-to-video with very realistic motion. Keyframe feature (upload start + end image) is powerful for precise animation. Fast: ~30–60 second generation.',
+    params:`<div class="fields two-col">
+      <div class="field"><label>Generation Type</label><select id="t-ltype"><option value="">— Select —</option><option>Text-to-video</option><option>Image-to-video (keyframe)</option></select></div>
+      <div class="field"><label>Loop</label><select id="t-lloop"><option value="">— Select —</option><option>No loop</option><option>Seamless loop</option></select></div>
+    </div>`
+  },
+  hailuo: {
+    label:'Hailuo MiniMax', mode:'video',
+    note:'Strong on lifelike human expressions and emotion. Best for portrait and character-driven clips with natural facial movement.',
+    params:`<div class="fields"><div class="field"><label>Expression / Emotion</label><input id="t-emo" type="text" placeholder="e.g. joyful, contemplative, determined, surprised..."></div></div>`
+  },
+  vidu: {
+    label:'Vidu Q3', mode:'video',
+    note:'Master of multi-shot editing. "Smart Cuts" generates multiple camera angles in one 16-second clip. Built-in audio sync. Use timestamp structure for best results.',
+    params:`<div class="fields"><div class="field"><label>Multi-Shot Structure (optional)</label><input id="t-vshots" type="text" placeholder="e.g. Shot 1 [0–4s]: wide; Shot 2 [4–8s]: close-up; Shot 3 [8–16s]: aerial"></div></div>`
+  }
+};
+
+function setMode(mode, e) {
+  currentMode = mode;
+  document.body.className = mode === 'video' ? 'video-mode' : '';
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById('tool-chips-image').style.display = mode === 'image' ? 'flex' : 'none';
+  document.getElementById('tool-chips-video').style.display = mode === 'video' ? 'flex' : 'none';
+  const firstChip = document.querySelector(`#tool-chips-${mode} .tool-chip`);
+  if (firstChip) activateTool(firstChip);
+}
+
+function activateTool(el) {
+  const group = el.closest('.tool-chips');
+  group.querySelectorAll('.tool-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentTool = el.dataset.tool;
+  renderParams();
+  buildPrompt();
+}
+
+document.querySelectorAll('.tool-chip').forEach(el => {
+  el.addEventListener('click', () => activateTool(el));
+});
+
+function renderParams() {
+  const t = TOOLS[currentTool];
+  if (!t) return;
+  document.getElementById('params-tool-label').textContent = t.label;
+  document.getElementById('params-content').innerHTML = t.params;
+  const note = document.getElementById('tool-note');
+  note.textContent = t.note;
+  note.classList.add('visible');
+  document.querySelectorAll('#params-content input, #params-content select').forEach(el => {
+    el.addEventListener('change', buildPrompt);
+    el.addEventListener('input', buildPrompt);
+  });
+}
+
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('chip')) {
+    e.target.classList.toggle('selected');
+    buildPrompt();
+  }
+});
+
+document.querySelectorAll('input[id]:not([id^="t-"]), select[id]:not([id^="t-"]), textarea[id]').forEach(el => {
+  el.addEventListener('input', buildPrompt);
+  el.addEventListener('change', buildPrompt);
+});
+
+function getChips(group) {
+  return [...document.querySelectorAll(`.chip[data-group="${group}"].selected`)].map(c => c.textContent.trim());
+}
+
+function v(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+
+function buildPrompt() {
+  const parts = [];
+  const subj = v('subject'), det = v('subject-detail');
+  if (subj) parts.push(det ? `${subj}, ${det}` : subj);
+  const env = v('environment'); if (env) parts.push(env);
+  const time = v('time'); if (time) parts.push(time);
+  const mediums = getChips('medium'); if (mediums.length) parts.push(mediums.join(', '));
+  const styles = getChips('style'); if (styles.length) parts.push(styles.join(', '));
+  const artist = v('artist'); if (artist) parts.push(artist);
+  const shot = v('shot'); if (shot) parts.push(shot);
+  const lens = v('lens'); if (lens) parts.push(lens);
+  const lighting = getChips('lighting'); if (lighting.length) parts.push(lighting.join(', '));
+  const color = v('color'); if (color) parts.push(color);
+  const atm = v('atmosphere'); if (atm) parts.push(atm);
+
+  if (currentMode === 'video') {
+    const motion = getChips('motion'); if (motion.length) parts.push(motion.join(', '));
+    const va = v('video-action'); if (va) parts.push(va);
+    const dur = v('duration'); if (dur) parts.push(dur);
+  } else {
+    const ratio = getChips('ratio'); if (ratio.length) parts.push(ratio.join(', '));
+  }
+
+  const quality = getChips('quality'); if (quality.length) parts.push(quality.join(', '));
+
+  // Tool-specific additions
+  let suffix = '';
+  const t = currentTool;
+  if (t==='chatgpt') { const sz=v('t-size'),ql=v('t-quality'); if(sz) parts.push(`size: ${sz}`); if(ql) parts.push(`quality: ${ql}`); }
+  if (t==='nanob2'||t==='nanobp') { const ar=v('t-ar'),th=v('t-think'),ql=v('t-qual'); if(ar) parts.push(`aspect ratio ${ar}`); if(th) parts.push(`thinking level: ${th}`); if(ql) parts.push(ql); }
+  if (t==='grok') { const ar=v('t-ar'),vr=v('t-var'); if(ar) parts.push(`${ar} format`); if(vr) parts.push(vr); }
+  if (t==='canva') { const st=v('t-style'); if(st) parts.unshift(`${st} style`); }
+  if (t==='firefly') { const ct=v('t-ct'),ps=v('t-ps'); if(ct) parts.push(`content type: ${ct}`); if(ps) parts.push(ps); }
+  if (t==='seedream') { const ref=v('t-ref'); if(ref) parts.unshift(ref); }
+  if (t==='midjourney') { const ar=v('t-mjar'),ms=v('t-mjst'),s=v('t-s'),c=v('t-c'); if(ar) suffix+=` ${ar}`; if(ms) suffix+=` ${ms}`; if(s) suffix+=` --s ${s}`; if(c) suffix+=` --c ${c}`; suffix+=` --v 7`; }
+  if (t==='runway') { const cam=v('t-cam'),dur=v('t-dur'); if(cam) parts.push(`camera: ${cam}`); if(dur) parts.push(dur); }
+  if (t==='kling') { const kv=v('t-kv'),km=v('t-km'); if(kv) parts.push(kv); if(km) parts.push(km); }
+  if (t==='seedance') { const sr=v('t-sref'); if(sr) parts.unshift(sr); }
+  if (t==='veo') { const sf=v('t-sf'),ef=v('t-ef'),au=v('t-audio'),di=v('t-dial'); if(sf) parts.push(`first frame: ${sf}`); if(ef) parts.push(`last frame: ${ef}`); if(au) parts.push(`audio: ${au}`); if(di) parts.push(`dialogue: ${di}`); }
+  if (t==='sora') { const sar=v('t-sar'),sres=v('t-sres'); if(sar) parts.push(sar); if(sres) parts.push(sres); }
+  if (t==='pika') { const pe=v('t-peff'); if(pe) parts.push(`Pikaffect: ${pe}`); }
+  if (t==='luma') { const lt=v('t-ltype'),ll=v('t-lloop'); if(lt) parts.push(lt); if(ll) parts.push(ll); }
+  if (t==='hailuo') { const em=v('t-emo'); if(em) parts.push(`expression: ${em}`); }
+  if (t==='vidu') { const vs=v('t-vshots'); if(vs) parts.push(vs); }
+
+  const negative = v('negative');
+  let prompt = parts.filter(Boolean).join(', ') + suffix;
+  if (negative) prompt += `\n\n--no ${negative}`;
+
+  const out = document.getElementById('prompt-output');
+  out.textContent = (prompt && prompt.trim() !== '--no') ? prompt : 'Fill in the fields above and click Generate Prompt →';
+  document.getElementById('char-count').textContent = `${parts.join(', ').length} characters`;
+}
+
+function copyPrompt() {
+  const text = document.getElementById('prompt-output').textContent;
+  if (!text || text.includes('Fill in')) return;
+  navigator.clipboard.writeText(text).then(() => showToast('Copied ✓'));
+}
+
+function clearAll() {
+  document.querySelectorAll('input[id], textarea[id]').forEach(el => el.value = '');
+  document.querySelectorAll('select[id]').forEach(el => el.selectedIndex = 0);
+  document.querySelectorAll('.chip.selected').forEach(c => c.classList.remove('selected'));
+  document.getElementById('params-content').querySelectorAll('input, select').forEach(el => { if(el.tagName==='SELECT') el.selectedIndex=0; else el.value=''; });
+  document.getElementById('prompt-output').textContent = 'Fill in the fields above and click Generate Prompt →';
+  document.getElementById('char-count').textContent = '0 characters';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// Init
+renderParams();
+</script>
+</body>
+</html>
